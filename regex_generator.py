@@ -6,11 +6,14 @@ regex for fullmatching is simpler than that for search or match
 
 TODO:
 - [ ] add selection weight to different kind of special character 
+- [ ] use cuckoo filter to ignore repeat regex
+- [ ] speed up the generation using multi-processing
 """
 import typing
 import random
 import string
 import rstr
+import copy
 from regexfactory.pattern import escape, join
 # TODO: [X] consider random special characters 
 from regexfactory.chars import (
@@ -45,12 +48,12 @@ class DynamicWrapper:
     """
     @staticmethod
     def wrap_into_amount(pattern: RegexPattern, amount_complexity: int) -> Amount:
-        if random.uniform(0, 1) < 0.1:
+        if random.uniform(0, 1) < 0.25:
             or_more = True
         else:
             or_more = False
         lower_bound = random.randint(0, amount_complexity)
-        if random.uniform(0, 1) < 0.1:
+        if random.uniform(0, 1) < 0.25:
             # no upper bound
             return Amount(pattern, lower_bound, j = None, or_more = or_more)
         else:
@@ -82,15 +85,16 @@ class DynamicCharGenerator:
     def __init__(self, set_complexity: int, amount_complexity: int):
         self._set_complexity = set_complexity
         self._amount_complexity = amount_complexity
+        self._start_candidates = DynamicCharGenerator.printable_escapes
+        self._start_candidates.extend(DynamicCharGenerator.special_chars_without_any)
+        self._start_candidates.append(ANY)
 
     def get_random_chars(self, length: int) -> typing.List[RegexPattern]:
         """
         Generate a List of single char regex pattern
         with repeat select
         """
-        candidates = [ANY]
-        candidates.extend(DynamicCharGenerator.special_chars_without_any)
-        candidates.extend(DynamicCharGenerator.printable_escapes)
+        candidates = copy.copy(self._start_candidates)
         candidates.append(DynamicCharGenerator._get_random_range())
         candidates.append(self._get_random_set())
         char = candidates[random.randint(0, len(candidates)-1)]
@@ -162,6 +166,8 @@ class DynamicGroupGenerator:
     - [X] Optional
     """
     def __init__(self, set_complexity: int, union_complexity: int, amount_complexity: int, group_complexity: int, depth_complexity: int, breadth_complexity: int):
+        assert breadth_complexity >= 1
+        assert set_complexity >= 1
         self._set_complexity = set_complexity
         self._union_complexity = union_complexity
         self._amount_complexity = amount_complexity
@@ -219,22 +225,33 @@ class DynamicGroupGenerator:
             return Group(join(*self._dynamic_char_generator.get_random_chars(length)))
         else:
             return Group(self.get_random_pattern(recurse=recurse+1))
-        
 
+
+class RegexGenerator:
+    def __init__(self):
+        self._pattern_getter = DynamicGroupGenerator(
+            set_complexity=4, 
+            union_complexity=1, 
+            amount_complexity=3, 
+            group_complexity=20, 
+            depth_complexity=0, 
+            breadth_complexity=1
+        )
+
+    def generate(self, validate_cnt=10):
+        while True:
+            regex_pattern = self._pattern_getter.get_random_pattern()
+            if all([self.validate(regex_pattern) for _ in range(validate_cnt)]):
+                yield regex_pattern
+            else:
+                print(f'ignore: {regex_pattern.regex}')
+            
+
+    def validate(self, regex_pattern):
+        gen_str = rstr.xeger(regex_pattern.regex)
+        return bool(regex_pattern.compile().fullmatch(gen_str))
+    
 if __name__ == '__main__':
-    d = DynamicGroupGenerator(
-        set_complexity=3, 
-        union_complexity=2, 
-        amount_complexity=2, 
-        group_complexity=5, 
-        depth_complexity=1, 
-        breadth_complexity=1
-    )
-    for _ in range(10000):
-        regex_pattern = d.get_random_pattern()
-        compiled = regex_pattern.compile()
-        for _ in range(10):
-            print(compiled, ':')
-            gen_str = rstr.xeger(regex_pattern.regex)
-            print(gen_str)
-            assert bool(compiled.fullmatch(gen_str)), f'{gen_str} does not match regex: {compiled}'
+    gen = RegexGenerator().generate()
+    for x in gen:
+        print(x.__repr__())
