@@ -1,0 +1,2 @@
+regexfactory==1.0.0
+rstr==3.2.1
