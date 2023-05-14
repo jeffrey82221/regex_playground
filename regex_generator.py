@@ -39,83 +39,6 @@ from regexfactory.patterns import (
 )
 from regexfactory.pattern import RegexPattern
 
-class CharGenerator:
-    """
-    All Char-level Generators
-    """
-    special_chars_without_any = [
-        WHITESPACE,
-        NOTWHITESPACE,
-        WORD,
-        NOTWORD,
-        DIGIT,
-        NOTDIGIT
-    ]
-    printable_escapes = [escape(x) for x in string.printable]
-
-    def __init__(self, set_complexity: int):
-        self._set_complexity = set_complexity
-
-    def get_random_chars(self, length: int) -> typing.List[RegexPattern]:
-        """
-        Generate a List of single char regex pattern
-        with repeat select
-        """
-        candidates = [ANY]
-        candidates.extend(CharGenerator.special_chars_without_any)
-        candidates.extend(CharGenerator.printable_escapes)
-        candidates.append(CharGenerator._get_random_range())
-        candidates.append(self._get_random_set())
-        return random.choices(candidates, k=length)
-    
-    @staticmethod
-    def _get_random_range() -> Range:
-        """
-        Generate a random regex Range pattern
-        [s-e], where s and e are some printable chars
-        """
-        chars = random.choices(string.printable, k= 2)
-        if ord(chars[0]) <= ord(chars[1]):
-            return Range(escape(chars[0]), escape(chars[1]))
-        else:
-            return Range(escape(chars[1]), escape(chars[0]))
-
-    def _get_random_set(self) -> typing.Union[Set, NotSet]:
-        """
-        Generate a random Set/NotSet pattern. 
-        NOTE that Any (.) is not a special character in set. Hence, it is excluded.
-        """
-        assert self._set_complexity >= 1
-        count = random.randint(1, self._set_complexity)
-        chars = CharGenerator._get_random_non_repeating_chars(count)
-        pattern = join(*chars)
-        if random.uniform(0, 1) > 0.5:
-            return Set(pattern)
-        else:
-            return NotSet(pattern)
-
-    @staticmethod
-    def _get_random_non_repeating_chars(count: int) -> typing.List[RegexPattern]:
-        """
-        Generate a list of single char regex pattern
-        without repeat select
-        """
-        candidates = CharGenerator.special_chars_without_any + CharGenerator.printable_escapes
-        try:
-            result = random.sample(candidates, count)
-        except ValueError:
-            result = CharGenerator.printable_escapes
-        while (
-            (WHITESPACE in result) and (NOTWHITESPACE in result)
-        ) or (
-            (WORD in result) and (NOTWORD in result)
-        ) or (
-            (DIGIT in result) and (NOTDIGIT in result)
-        ):
-            result = random.sample(candidates, count)
-        result = sorted(result, key = lambda x: x.regex)
-        return result
-
 class DynamicWrapper:
     """
     Warp pattern by Amount, Multi, Optional
@@ -142,15 +65,23 @@ class DynamicWrapper:
         else:
             return Multi(pattern, match_zero=False)
 
-
 class DynamicCharGenerator:
     """
-    Generate repeating chars
+    All Char-level Generators
     """
-    def __init__(self, set_complexity: int, amount_complexity: int): 
+    special_chars_without_any = [
+        WHITESPACE,
+        NOTWHITESPACE,
+        WORD,
+        NOTWORD,
+        DIGIT,
+        NOTDIGIT
+    ]
+    printable_escapes = [escape(x) for x in string.printable]
+
+    def __init__(self, set_complexity: int, amount_complexity: int):
         self._set_complexity = set_complexity
         self._amount_complexity = amount_complexity
-        self._char_generator = CharGenerator(self._set_complexity)
 
     def get_random_chars(self, length: int) -> typing.List[RegexPattern]:
         """
@@ -158,15 +89,66 @@ class DynamicCharGenerator:
         with repeat select
         """
         candidates = [ANY]
-        candidates.extend(CharGenerator.special_chars_without_any)
-        candidates.extend(CharGenerator.printable_escapes)
-        candidates.append(CharGenerator._get_random_range())
-        candidates.append(self._char_generator._get_random_set())
-        char = self._char_generator.get_random_chars(1)[0]
+        candidates.extend(DynamicCharGenerator.special_chars_without_any)
+        candidates.extend(DynamicCharGenerator.printable_escapes)
+        candidates.append(DynamicCharGenerator._get_random_range())
+        candidates.append(self._get_random_set())
+        char = candidates[random.randint(0, len(candidates)-1)]
         candidates.append(DynamicWrapper.wrap_into_amount(char, self._amount_complexity))
         candidates.append(DynamicWrapper.wrap_into_multi(char))
         candidates.append(Optional(char))
         return random.choices(candidates, k=length)
+    
+    @staticmethod
+    def _get_random_range() -> Range:
+        """
+        Generate a random regex Range pattern
+        [s-e], where s and e are some printable chars
+        """
+        chars = random.choices(string.printable, k= 2)
+        if ord(chars[0]) <= ord(chars[1]):
+            return Range(escape(chars[0]), escape(chars[1]))
+        else:
+            return Range(escape(chars[1]), escape(chars[0]))
+
+    def _get_random_set(self) -> typing.Union[Set, NotSet]:
+        """
+        Generate a random Set/NotSet pattern. 
+        NOTE that Any (.) is not a special character in set. Hence, it is excluded.
+        """
+        assert self._set_complexity >= 1
+        count = random.randint(1, self._set_complexity)
+        chars = DynamicCharGenerator._get_random_non_repeating_chars(count)
+        pattern = join(*chars)
+        if random.uniform(0, 1) > 0.5:
+            return Set(pattern)
+        else:
+            return NotSet(pattern)
+
+    @staticmethod
+    def _get_random_non_repeating_chars(count: int) -> typing.List[RegexPattern]:
+        """
+        Generate a list of single char regex pattern
+        without repeat select
+        """
+        candidates = DynamicCharGenerator.special_chars_without_any + DynamicCharGenerator.printable_escapes
+        try:
+            result = random.sample(candidates, count)
+        except ValueError:
+            result = DynamicCharGenerator.printable_escapes
+        while (
+            (WHITESPACE in result) and (NOTWHITESPACE in result)
+        ) or (
+            (WORD in result) and (NOTWORD in result)
+        ) or (
+            (DIGIT in result) and (NOTDIGIT in result)
+        ):
+            result = random.sample(candidates, count)
+        result = sorted(result, key = lambda x: x.regex)
+        return result
+
+
+   
 
 class DynamicGroupGenerator:
     """
@@ -245,8 +227,8 @@ if __name__ == '__main__':
         union_complexity=2, 
         amount_complexity=2, 
         group_complexity=5, 
-        depth_complexity=2, 
-        breadth_complexity=3
+        depth_complexity=1, 
+        breadth_complexity=1
     )
     for _ in range(10000):
         regex_pattern = d.get_random_pattern()
