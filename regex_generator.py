@@ -61,8 +61,11 @@ class CharGenerator:
         NOTDIGIT
     ]
     printable_escapes = [escape(x) for x in string.printable]
-    @staticmethod
-    def get_random_chars(length: int, set_complexity: int) -> typing.List[RegexPattern]:
+
+    def __init__(self, set_complexity: int):
+        self._set_complexity = set_complexity
+
+    def get_random_chars(self, length: int) -> typing.List[RegexPattern]:
         """
         Generate a List of single char regex pattern
         with repeat select
@@ -71,7 +74,7 @@ class CharGenerator:
         candidates.extend(CharGenerator.special_chars_without_any)
         candidates.extend(CharGenerator.printable_escapes)
         candidates.append(CharGenerator._get_random_range())
-        candidates.append(CharGenerator._get_random_set(set_complexity))
+        candidates.append(self._get_random_set())
         return random.choices(candidates, k=length)
     
     @staticmethod
@@ -86,13 +89,14 @@ class CharGenerator:
         else:
             return Range(escape(chars[1]), escape(chars[0]))
 
-    @staticmethod
-    def _get_random_set(set_complexity: int) -> typing.Union[Set, NotSet]:
+    def _get_random_set(self) -> typing.Union[Set, NotSet]:
         """
         Generate a random Set/NotSet pattern. 
         NOTE that Any (.) is not a special character in set. Hence, it is excluded.
         """
-        chars = CharGenerator._get_random_non_repeating_chars(set_complexity)
+        assert self._set_complexity >= 1
+        count = random.randint(1, self._set_complexity)
+        chars = CharGenerator._get_random_non_repeating_chars(count)
         pattern = join(*chars)
         if random.uniform(0, 1) > 0.5:
             return Set(pattern)
@@ -152,8 +156,12 @@ class DynamicCharGenerator:
     """
     Generate repeating chars
     """
-    @staticmethod
-    def get_random_chars(length: int, set_complexity: int, amount_complexity: int) -> typing.List[RegexPattern]:
+    def __init__(self, set_complexity: int, amount_complexity: int): 
+        self._set_complexity = set_complexity
+        self._amount_complexity = amount_complexity
+        self._char_generator = CharGenerator(self._set_complexity)
+
+    def get_random_chars(self, length: int) -> typing.List[RegexPattern]:
         """
         Generate a List of single char regex pattern
         with repeat select
@@ -162,9 +170,9 @@ class DynamicCharGenerator:
         candidates.extend(CharGenerator.special_chars_without_any)
         candidates.extend(CharGenerator.printable_escapes)
         candidates.append(CharGenerator._get_random_range())
-        candidates.append(CharGenerator._get_random_set(set_complexity))
-        char = CharGenerator.get_random_chars(1, set_complexity)[0]
-        candidates.append(DynamicWrapper.wrap_into_amount(char, amount_complexity))
+        candidates.append(self._char_generator._get_random_set())
+        char = self._char_generator.get_random_chars(1)[0]
+        candidates.append(DynamicWrapper.wrap_into_amount(char, self._amount_complexity))
         candidates.append(DynamicWrapper.wrap_into_multi(char))
         candidates.append(Optional(char))
         return random.choices(candidates, k=length)
@@ -184,16 +192,22 @@ class DynamicGroupGenerator:
     - [X] IfBehind,
     - [X] IfNotBehind,
     """
-    @staticmethod
-    def get_random_group_pattern(group_complexity: int, set_complexity: int, amount_complexity: int, union_complexity: int) -> Group:
+    def __init__(self, set_complexity: int, union_complexity: int, amount_complexity: int, group_complexity: int):
+        self._set_complexity = set_complexity
+        self._union_complexity = union_complexity
+        self._amount_complexity = amount_complexity
+        self._group_complexity = group_complexity
+        self._dynamic_char_generator = DynamicCharGenerator(set_complexity, amount_complexity)
+
+    def get_random_group_pattern(self) -> Group:
         """
         Generate random group pattern that includes Or/Amount/Multi/Optional patterns
         """
         candidates = []
-        candidates.append(DynamicGroupGenerator._get_random_group_pattern(group_complexity, set_complexity, amount_complexity))
-        candidates.append(DynamicGroupGenerator._get_random_union_groups(group_complexity, set_complexity, amount_complexity, union_complexity))
-        group = DynamicGroupGenerator._get_random_group_pattern(group_complexity, set_complexity, amount_complexity)
-        candidates.append(Group(DynamicWrapper.wrap_into_amount(group, amount_complexity)))
+        candidates.append(self._get_random_group_pattern())
+        candidates.append(self._get_random_union_groups())
+        group = self._get_random_group_pattern()
+        candidates.append(Group(DynamicWrapper.wrap_into_amount(group, self._amount_complexity)))
         candidates.append(Group(DynamicWrapper.wrap_into_multi(group)))
         candidates.append(Group(Optional(group)))
         #candidates.append(Group(IfAhead(group)))
@@ -202,38 +216,38 @@ class DynamicGroupGenerator:
         #candidates.append(Group(IfNotBehind(group)))
         return random.choices(candidates, k=1)[0]
 
-    @staticmethod
-    def _get_random_union_groups(group_complexity: int, set_complexity: int, amount_complexity: int, union_complexity: int) -> Group:
+    
+    def _get_random_union_groups(self) -> Group:
         """
         Get random Or-wrapped group patterns
         """
-        group_count = random.randint(0, union_complexity)
-        groups = DynamicGroupGenerator._get_random_groups(group_complexity, set_complexity, amount_complexity, group_count)
+        group_count = random.randint(0, self._union_complexity)
+        groups = self._get_random_groups(group_count)
         return Group(Or(*groups))
     
-    @staticmethod
-    def _get_random_groups(group_complexity: int, set_complexity: int, amount_complexity: int, group_count: int) -> typing.List[Group]:
+    def _get_random_groups(self, group_count: int) -> typing.List[Group]:
         groups = []
         for _ in range(group_count):
-            group = DynamicGroupGenerator._get_random_group_pattern(group_complexity, set_complexity, amount_complexity)
+            group = self._get_random_group_pattern()
             groups.append(group)
         return groups
 
-    @staticmethod
-    def _get_random_group_pattern(group_complexity: int, set_complexity: int, amount_complexity: int) -> Group:
+    
+    def _get_random_group_pattern(self) -> Group:
         """
         A string mixing normal chars with special chars
 
         TODO:
         - [ ] Make this function becomes the core of recurrsive
         """
-        length = random.randint(0, group_complexity)
-        return Group(join(*DynamicCharGenerator.get_random_chars(length, set_complexity, amount_complexity)))
+        length = random.randint(0, self._group_complexity)
+        return Group(join(*self._dynamic_char_generator.get_random_chars(length)))
         
 
 if __name__ == '__main__':
+    d = DynamicGroupGenerator(10, 8, 3, 3)
     for _ in range(1000):
-        regex_pattern = DynamicGroupGenerator.get_random_group_pattern(10, 8, 3, 3)
+        regex_pattern = d.get_random_group_pattern()
         compiled = regex_pattern.compile()
         for _ in range(100):
             print(compiled, ':')
