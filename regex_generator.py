@@ -34,16 +34,7 @@ from regexfactory.patterns import (
     Or, 
     Amount, # Work on character level (need to wrap input into Group in order to become string-level)
     Multi,
-    Optional,
-    IfAhead,
-    IfNotAhead,
-    IfBehind,
-    IfNotBehind,
-    # TODO: [ ] Advanced:
-    IfGroup,
-    NamedGroup,
-    NamedReference,
-    NumberedReference
+    Optional
     # Commet -> no effect
 )
 from regexfactory.pattern import RegexPattern
@@ -131,12 +122,12 @@ class DynamicWrapper:
     """
     @staticmethod
     def wrap_into_amount(pattern: RegexPattern, amount_complexity: int) -> Amount:
-        if random.uniform(0, 1) < 0.5:
+        if random.uniform(0, 1) < 0.1:
             or_more = True
         else:
             or_more = False
         lower_bound = random.randint(0, amount_complexity)
-        if random.uniform(0, 1) < 0.5:
+        if random.uniform(0, 1) < 0.1:
             # no upper bound
             return Amount(pattern, lower_bound, j = None, or_more = or_more)
         else:
@@ -186,70 +177,81 @@ class DynamicGroupGenerator:
     - [X] Or, 
     - [X] Amount, # Work on character level (need to wrap input into Group in order to become string-level)
     - [X] Multi,
-    - [X] Optional,
-    - [X] IfAhead,
-    - [X] IfNotAhead,
-    - [X] IfBehind,
-    - [X] IfNotBehind,
+    - [X] Optional
     """
-    def __init__(self, set_complexity: int, union_complexity: int, amount_complexity: int, group_complexity: int):
+    def __init__(self, set_complexity: int, union_complexity: int, amount_complexity: int, group_complexity: int, depth_complexity: int, breadth_complexity: int):
         self._set_complexity = set_complexity
         self._union_complexity = union_complexity
         self._amount_complexity = amount_complexity
         self._group_complexity = group_complexity
+        self._depth_complexity = depth_complexity
+        self._breadth_complexity = breadth_complexity
         self._dynamic_char_generator = DynamicCharGenerator(set_complexity, amount_complexity)
 
-    def get_random_group_pattern(self) -> Group:
+    def get_random_pattern(self, recurse: int=0) -> RegexPattern:
+        """
+        Generate random pattern
+        """
+        group_count = random.randint(0, self._breadth_complexity)
+        groups = self.get_random_groups(group_count, recurse=recurse)
+        pattern = join(*groups)
+        return pattern
+
+    def get_random_groups(self, group_count: int, recurse: int=0) -> typing.List[Group]:
         """
         Generate random group pattern that includes Or/Amount/Multi/Optional patterns
         """
         candidates = []
-        candidates.append(self._get_random_group_pattern())
-        candidates.append(self._get_random_union_groups())
-        group = self._get_random_group_pattern()
-        candidates.append(Group(DynamicWrapper.wrap_into_amount(group, self._amount_complexity)))
-        candidates.append(Group(DynamicWrapper.wrap_into_multi(group)))
-        candidates.append(Group(Optional(group)))
-        #candidates.append(Group(IfAhead(group)))
-        #candidates.append(Group(IfNotAhead(group)))
-        #candidates.append(Group(IfBehind(group)))
-        #candidates.append(Group(IfNotBehind(group)))
-        return random.choices(candidates, k=1)[0]
+        while len(candidates) < group_count:
+            group = self._get_random_group_pattern(recurse=recurse)
+            candidates.append(group)
+            candidates.append(self._get_random_union_groups(recurse=recurse))
+            candidates.append(Group(DynamicWrapper.wrap_into_amount(group, self._amount_complexity)))
+            candidates.append(Group(DynamicWrapper.wrap_into_multi(group)))
+            candidates.append(Group(Optional(group)))
+        return random.choices(candidates, k=group_count)
 
     
-    def _get_random_union_groups(self) -> Group:
+    def _get_random_union_groups(self, recurse: int=0) -> Group:
         """
         Get random Or-wrapped group patterns
         """
         group_count = random.randint(0, self._union_complexity)
-        groups = self._get_random_groups(group_count)
+        groups = self._get_random_groups(group_count, recurse=recurse)
         return Group(Or(*groups))
     
-    def _get_random_groups(self, group_count: int) -> typing.List[Group]:
+    def _get_random_groups(self, group_count: int, recurse: int = 0) -> typing.List[Group]:
         groups = []
         for _ in range(group_count):
-            group = self._get_random_group_pattern()
+            group = self._get_random_group_pattern(recurse=recurse)
             groups.append(group)
         return groups
 
     
-    def _get_random_group_pattern(self) -> Group:
+    def _get_random_group_pattern(self, recurse: int=0) -> Group:
         """
         A string mixing normal chars with special chars
-
-        TODO:
-        - [ ] Make this function becomes the core of recurrsive
         """
-        length = random.randint(0, self._group_complexity)
-        return Group(join(*self._dynamic_char_generator.get_random_chars(length)))
+        if recurse > self._depth_complexity:
+            length = random.randint(0, self._group_complexity)
+            return Group(join(*self._dynamic_char_generator.get_random_chars(length)))
+        else:
+            return Group(self.get_random_pattern(recurse=recurse+1))
         
 
 if __name__ == '__main__':
-    d = DynamicGroupGenerator(10, 8, 3, 3)
-    for _ in range(1000):
-        regex_pattern = d.get_random_group_pattern()
+    d = DynamicGroupGenerator(
+        set_complexity=3, 
+        union_complexity=2, 
+        amount_complexity=2, 
+        group_complexity=5, 
+        depth_complexity=2, 
+        breadth_complexity=3
+    )
+    for _ in range(10000):
+        regex_pattern = d.get_random_pattern()
         compiled = regex_pattern.compile()
-        for _ in range(100):
+        for _ in range(10):
             print(compiled, ':')
             gen_str = rstr.xeger(regex_pattern.regex)
             print(gen_str)
