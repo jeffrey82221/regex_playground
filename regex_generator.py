@@ -15,6 +15,7 @@ import string
 import rstr
 import copy
 from regexfactory.pattern import escape, join
+import tqdm
 # TODO: [X] consider random special characters
 from regexfactory.chars import (
     ANY,
@@ -44,6 +45,12 @@ from regexfactory.patterns import (
 )
 from regexfactory.pattern import RegexPattern
 
+PRINTABLES = []
+PRINTABLES.extend(string.ascii_letters)
+PRINTABLES.extend(string.digits)
+PRINTABLES.extend(string.hexdigits)
+PRINTABLES.extend(string.octdigits)
+PRINTABLES.extend(string.punctuation)
 
 class DynamicWrapper:
     """
@@ -85,7 +92,7 @@ class DynamicCharGenerator:
         DIGIT,
         NOTDIGIT
     ]
-    printable_escapes = [escape(x) for x in string.printable]
+    printable_escapes = [escape(x) for x in PRINTABLES]
 
     def __init__(self, set_complexity: int, amount_complexity: int):
         self._set_complexity = set_complexity
@@ -255,13 +262,15 @@ class RegexGenerator:
         )
 
     def generate(self, validate_cnt=10):
+        ignore_cnt = 0
         while True:
             regex_pattern = self._pattern_getter.get_random_pattern()
             if all([self.validate(regex_pattern)
                    for _ in range(validate_cnt)]):
                 yield regex_pattern
             else:
-                print(f'ignore: {regex_pattern.regex}')
+                ignore_cnt += 1
+                print(f'ignore no.{ignore_cnt}: {regex_pattern.regex}')
 
     def validate(self, regex_pattern):
         gen_str = rstr.xeger(regex_pattern.regex)
@@ -270,5 +279,5 @@ class RegexGenerator:
 
 if __name__ == '__main__':
     gen = RegexGenerator().generate()
-    for x in gen:
-        print(x.__repr__())
+    for i, x in enumerate(gen):
+        pass
