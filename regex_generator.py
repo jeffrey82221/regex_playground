@@ -13,8 +13,6 @@ TODO:
 import exrex
 import tqdm
 import re
-from regexfactory import RegexPattern
-from toolz import curry
 from toolz import curried
 from toolz.functoolz import pipe
 from rbloom import Bloom
@@ -33,13 +31,14 @@ class RegexGenerator:
     @property
     def initial_complexities(self) -> dict:
         return {
-            'set_complexity': 3, 
-            'union_complexity': 1, 
-            'amount_complexity': 4, 
-            'group_complexity': 20, 
-            'depth_complexity': 0, 
+            'set_complexity': 3,
+            'union_complexity': 1,
+            'amount_complexity': 4,
+            'group_complexity': 20,
+            'depth_complexity': 0,
             'breadth_complexity': 3
         }
+
     def produce_regex(self):
         while True:
             yield self._pattern_getter.get_random_pattern()
@@ -52,14 +51,16 @@ class RegexGenerator:
                 'complexity': exrex.count(rp.regex),
                 'length': len(rp.regex)
             }),
-            curried.filter(lambda x: x['complexity'] >= 2 and x['complexity']<self._max_complexity),
-            curried.filter(lambda x: x['length'] >= 0 and x['length']<self._max_length),
+            curried.filter(
+                lambda x: x['complexity'] >= 2 and x['complexity'] < self._max_complexity),
+            curried.filter(lambda x: x['length'] >=
+                           0 and x['length'] < self._max_length),
             curried.filter(lambda x: self.valid(x['regex'])),
             self.non_repeat,
             curried.map(self.add_example),
             curried.filter(lambda x: len(x['example']) > 0)
         )
-    
+
     def non_repeat(self, iterable):
         for x in iterable:
             if x['regex'] not in self._bloom:
@@ -72,19 +73,19 @@ class RegexGenerator:
 
     def add_example(self, result):
         result['example'] = exrex.getone(result['regex'])
-        while not bool(re.compile(result['regex']).fullmatch(result['example'])):
+        while not bool(re.compile(
+                result['regex']).fullmatch(result['example'])):
             result['example'] = exrex.getone(result['regex'])
         return result
 
     def add_examples(self, result):
         """
-        Enable generating of multiple examples 
+        Enable generating of multiple examples
         """
         pass
 
+
 if __name__ == '__main__':
-    gen = RegexGenerator(
-        
-    ).generate()
+    gen = RegexGenerator().generate()
     for i, x in enumerate(gen):
         print(i, x)

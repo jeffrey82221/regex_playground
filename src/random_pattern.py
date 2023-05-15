@@ -24,7 +24,8 @@ from regexfactory.patterns import (
     # TODO: [X] Operators for long string
     Group,
     Or,
-    # TODO: [X] Work on character level (need to wrap input into Group in order to
+    # TODO: [X] Work on character level (need to wrap input into Group in
+    # order to
     Amount,
     Multi,
     Optional
@@ -39,6 +40,7 @@ PRINTABLES.extend(string.digits)
 PRINTABLES.extend(string.hexdigits)
 PRINTABLES.extend(string.octdigits)
 PRINTABLES.extend(string.punctuation)
+
 
 class Wrapper:
     """
