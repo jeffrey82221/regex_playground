@@ -1,2 +1,3 @@
 regexfactory==1.0.0
-rstr==3.2.1
+exrex==0.11.0
+rbloom==1.4.4
