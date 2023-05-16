@@ -20,7 +20,7 @@ from src.random_pattern import GroupGenerator
 
 
 class RegexGenerator:
-    def __init__(self, max_complexity=1000, max_length=50):
+    def __init__(self, max_complexity=1000, max_length=20):
         self._max_complexity = max_complexity
         self._max_length = max_length
         self._pattern_getter = GroupGenerator(
@@ -31,10 +31,10 @@ class RegexGenerator:
     @property
     def initial_complexities(self) -> dict:
         return {
-            'set_complexity': 3,
-            'union_complexity': 1,
+            'set_complexity': 2,
+            'union_complexity': 2,
             'amount_complexity': 4,
-            'group_complexity': 20,
+            'group_complexity': 10,
             'depth_complexity': 0,
             'breadth_complexity': 3
         }
@@ -52,9 +52,9 @@ class RegexGenerator:
                 'length': len(rp.regex)
             }),
             curried.filter(
-                lambda x: x['complexity'] > 0 and x['complexity'] < self._max_complexity),
+                lambda x: x['complexity'] > 2 and x['complexity'] < self._max_complexity),
             curried.filter(lambda x: x['length'] >=
-                           0 and x['length'] < self._max_length),
+                           1 and x['length'] < self._max_length),
             curried.filter(lambda x: self.fullmatch_valid(x['regex'])),
             curried.map(self.add_examples),
             curried.filter(lambda x: isinstance(x['examples'], list)),
