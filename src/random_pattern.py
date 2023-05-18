@@ -1,7 +1,13 @@
+"""
+TODO:
+
+- [ ] get_random_groups
+"""
 import copy
 import typing
 import random
 import string
+import deprecated
 from regexfactory.pattern import escape, join
 from regexfactory.pattern import RegexPattern
 # TODO: [X] consider random special characters
@@ -47,8 +53,23 @@ class Wrapper:
     Warp pattern by Amount, Multi, Optional
     """
     @staticmethod
-    def wrap_into_amount(pattern: RegexPattern,
-                         amount_complexity: int) -> Amount:
+    def wrap_into_limit_amount(pattern: RegexPattern, amount_complexity: int) -> Amount:
+        """
+        For wraping a pattern into multiple amount pattern
+        (only support limited repeativeness)
+        """
+        lower_bound = random.randint(0, amount_complexity)
+        if random.uniform(0, 1) < 0.5:
+            # fix amount
+            return Amount(pattern, lower_bound, j=None, or_more=False)
+        else:
+            # amount of a range
+            upper_bound = lower_bound + random.randint(0, amount_complexity)
+            return Amount(pattern, lower_bound, j=upper_bound, or_more=False)
+
+    @staticmethod
+    def __wrap_into_amount(pattern: RegexPattern,
+                           amount_complexity: int) -> Amount:
         if random.uniform(0, 1) < 0.25:
             or_more = True
         else:
@@ -63,7 +84,7 @@ class Wrapper:
             return Amount(pattern, lower_bound, j=upper_bound, or_more=or_more)
 
     @staticmethod
-    def wrap_into_multi(pattern: RegexPattern) -> Multi:
+    def __wrap_into_multi(pattern: RegexPattern) -> Multi:
         if random.uniform(0, 1) < 0.5:
             return Multi(pattern, match_zero=True)
         else:
@@ -102,11 +123,62 @@ class CharGenerator:
         candidates.append(self._get_random_set())
         char = candidates[random.randint(0, len(candidates) - 1)]
         candidates.append(
-            Wrapper.wrap_into_amount(
+            Wrapper.wrap_into_limit_amount(
                 char, self._amount_complexity))
-        candidates.append(Wrapper.wrap_into_multi(char))
+        # candidates.append(Wrapper.wrap_into_multi(char))
         candidates.append(Optional(char))
         return random.choices(candidates, k=length)
+
+    def _get_random_char(self):
+        """
+        random select from simple char or complex char
+        with complex_char_probabilty
+
+        complex char:
+
+        1) char wrapped by Amount
+
+        2) char wrapped by Optional
+
+        simple char:
+
+        char with fix count = 1
+
+        if x < p:
+            complex char -> more complicated
+        else:
+            simple char
+        """
+
+    def _get_random_amount(self):
+        """
+        warp _get_random_simple_char into Amount
+        """
+        pass
+
+    def _get_random_simple_char(self):
+        """
+        select by special char probability
+
+        special:
+        - in special chars 1/3
+        - random range 1/3
+        - random set 1/3
+
+        if x < p:
+            special char -> more complicated
+        else:
+            printable char
+        """
+        pass
+
+    @staticmethod
+    def _get_random_special_char():
+        pass
+
+    @staticmethod
+    def _get_random_printables():
+        pass
 
     @staticmethod
     def _get_random_range() -> Range:
@@ -205,10 +277,10 @@ class PatternGenerator:
             candidates.append(self._get_random_union_groups(recurse=recurse))
             candidates.append(
                 Group(
-                    Wrapper.wrap_into_amount(
+                    Wrapper.wrap_into_limit_amount(
                         group,
                         self._amount_complexity)))
-            candidates.append(Group(Wrapper.wrap_into_multi(group)))
+            # candidates.append(Group(Wrapper.wrap_into_multi(group)))
             candidates.append(Group(Optional(group)))
         return random.choices(candidates, k=group_count)
 
