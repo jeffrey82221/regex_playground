@@ -9,9 +9,11 @@ TODO:
 - [X] generate multiple examples with length > 0
 - [ ] add selection weight to different kind of special character
 - [ ] speed up the generation using multi-processing
+
+REF:
+https://regex-generator.olafneumann.org/
 """
 import exrex
-import tqdm
 import re
 from toolz import curried
 from toolz.functoolz import pipe
@@ -20,16 +22,25 @@ from src.random_pattern import GroupGenerator
 
 
 class RegexGenerator:
+    """
+    Generating random regex,
+    its complexity, length, and examples
+    """
+
     def __init__(self, max_complexity=1000, max_length=20):
         self._max_complexity = max_complexity
         self._max_length = max_length
-        self._pattern_getter = GroupGenerator(
+        self._pattern_generator = GroupGenerator(
             **self.initial_complexities
         )
         self._bloom = Bloom(100000000000, 0.01)
 
     @property
     def initial_complexities(self) -> dict:
+        """
+        Detail complexity parameters of
+        the regex pattern generator
+        """
         return {
             'set_complexity': 2,
             'union_complexity': 2,
@@ -39,13 +50,13 @@ class RegexGenerator:
             'breadth_complexity': 3
         }
 
-    def produce_regex(self):
-        while True:
-            yield self._pattern_getter.get_random_pattern()
-
     def generate(self):
+        """
+        Generating non-repeating complexity-in-ranged random regex,
+        as well as its complexity, length, and examples
+        """
         return pipe(
-            self.produce_regex(),
+            self._regex_producer(),
             curried.map(lambda rp: {
                 'regex': rp.regex,
                 'complexity': exrex.count(rp.regex),
@@ -55,42 +66,29 @@ class RegexGenerator:
                 lambda x: x['complexity'] > 2 and x['complexity'] < self._max_complexity),
             curried.filter(lambda x: x['length'] >=
                            1 and x['length'] < self._max_length),
-            curried.filter(lambda x: self.fullmatch_valid(x['regex'])),
-            curried.map(self.add_examples),
+            curried.filter(lambda x: self._can_fullmatch(x['regex'])),
+            curried.map(self._add_examples),
             curried.filter(lambda x: isinstance(x['examples'], list)),
             curried.filter(lambda x: len(x['examples']) == x['complexity']),
-            curried.filter(self.all_full_match),
-            self.non_repeat,
+            curried.filter(self._all_examples_fullmatch),
+            self._filter_repeat,
         )
 
-    def non_repeat(self, iterable):
-        for x in iterable:
-            if x['regex'] not in self._bloom:
-                yield x
-                self._bloom.add(x['regex'])
+    def _regex_producer(self):
+        """
+        Generate random regex from the pattern generator
+        """
+        while True:
+            yield self._pattern_generator.get_random_pattern()
 
-    def fullmatch_valid(self, regex_str: str) -> bool:
+    def _can_fullmatch(self, regex_str: str) -> bool:
         """
         Assert fullmatching is possible
         """
         example = exrex.getone(regex_str)
         return bool(re.compile(regex_str).fullmatch(example))
 
-    def all_full_match(self, result: dict) -> bool:
-        com = re.compile(result['regex'])
-        answers = []
-        for example in result['examples']:
-            try:
-                ans = bool(com.fullmatch(example))
-            except TypeError as e:
-                if e.args[0] == 'expected string or bytes-like object':
-                    return False
-                else:
-                    raise e
-            answers.append(ans)
-        return all(answers)
-
-    def add_example(self, result: dict) -> dict:
+    def _add_example(self, result: dict) -> dict:
         """
         Add one single example
         """
@@ -100,9 +98,9 @@ class RegexGenerator:
             result['example'] = exrex.getone(result['regex'])
         return result
 
-    def add_examples(self, result):
+    def _add_examples(self, result):
         """
-        Enable generating of multiple examples
+        Generating of multiple examples
         """
         regex = result['regex']
         try:
@@ -121,8 +119,28 @@ class RegexGenerator:
             else:
                 raise e
 
+    def _all_examples_fullmatch(self, result: dict) -> bool:
+        """
+        Check whether all examples fullmatch the regex
+        """
+        com = re.compile(result['regex'])
+        answers = []
+        for example in result['examples']:
+            try:
+                ans = bool(com.fullmatch(example))
+            except TypeError as e:
+                if e.args[0] == 'expected string or bytes-like object':
+                    return False
+                else:
+                    raise e
+            answers.append(ans)
+        return all(answers)
 
-if __name__ == '__main__':
-    gen = RegexGenerator().generate()
-    for i, x in enumerate(gen):
-        print(i, x['regex'], len(x['examples']))
+    def _filter_repeat(self, iterable):
+        """
+        Filter out the repeated regex pattern
+        """
+        for x in iterable:
+            if x['regex'] not in self._bloom:
+                yield x
+                self._bloom.add(x['regex'])
