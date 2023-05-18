@@ -18,7 +18,7 @@ import re
 from toolz import curried
 from toolz.functoolz import pipe
 from rbloom import Bloom
-from src.random_pattern import GroupGenerator
+from src.random_pattern import PatternGenerator
 
 
 class RegexGenerator:
@@ -30,7 +30,7 @@ class RegexGenerator:
     def __init__(self, max_complexity=1000, max_length=20):
         self._max_complexity = max_complexity
         self._max_length = max_length
-        self._pattern_generator = GroupGenerator(
+        self._pattern_generator = PatternGenerator(
             **self.initial_complexities
         )
         self._bloom = Bloom(100000000000, 0.01)
@@ -56,23 +56,45 @@ class RegexGenerator:
         as well as its complexity, length, and examples
         """
         return pipe(
-            self._regex_producer(),
-            curried.map(lambda rp: {
-                'regex': rp.regex,
-                'complexity': exrex.count(rp.regex),
-                'length': len(rp.regex)
-            }),
-            curried.filter(
-                lambda x: x['complexity'] > 2 and x['complexity'] < self._max_complexity),
-            curried.filter(lambda x: x['length'] >=
-                           1 and x['length'] < self._max_length),
-            curried.filter(lambda x: self._can_fullmatch(x['regex'])),
-            curried.map(self._add_examples),
-            curried.filter(lambda x: isinstance(x['examples'], list)),
-            curried.filter(lambda x: len(x['examples']) == x['complexity']),
-            curried.filter(self._all_examples_fullmatch),
+            self.regex_producer(),
+            self._complexity_filter,
+            self._validity_filter,
             self._filter_repeat,
         )
+
+    def regex_producer(self):
+        """
+        Generate regex and its complexity and length
+        """
+        return pipe(self._regex_producer(),
+                    curried.map(lambda rp: {
+                        'regex': rp.regex,
+                        'complexity': exrex.count(rp.regex),
+                        'length': len(rp.regex)
+                    }))
+
+    def _complexity_filter(self, x):
+        """
+        Filter regex by its complexity and length
+        """
+        return pipe(x,
+                    curried.filter(
+                        lambda x: x['complexity'] > 2 and x['complexity'] < self._max_complexity),
+                    curried.filter(lambda x: x['length'] >=
+                                   1 and x['length'] < self._max_length),
+                    )
+
+    def _validity_filter(self, x):
+        """
+        Filter the regex by the validity of generated examples
+        """
+        return pipe(x,
+                    curried.filter(lambda x: self._can_fullmatch(x['regex'])),
+                    curried.map(self._add_examples),
+                    curried.filter(lambda x: isinstance(x['examples'], list)),
+                    curried.filter(lambda x: len(x['examples']) == x['complexity']),
+                    curried.filter(self._all_examples_fullmatch),
+                    )
 
     def _regex_producer(self):
         """

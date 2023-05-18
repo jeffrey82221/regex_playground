@@ -32,7 +32,7 @@ from regexfactory.patterns import (
     # Commet -> no effect
 )
 
-__all__ = ['GroupGenerator']
+__all__ = ['PatternGenerator']
 
 PRINTABLES = []
 PRINTABLES.extend(string.ascii_letters)
@@ -159,7 +159,7 @@ class CharGenerator:
         return result
 
 
-class GroupGenerator:
+class PatternGenerator:
     """
     Generate Random Groups wrapped by following things:
 
