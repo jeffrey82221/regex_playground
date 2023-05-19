@@ -105,29 +105,28 @@ class CharGenerator:
     ]
     printable_escapes = [escape(x) for x in PRINTABLES]
 
-    def __init__(self, set_complexity: int, amount_complexity: int):
+    def __init__(self, set_complexity: int, amount_complexity: int, special_char_prob: float = 0.5, complex_char_prob: float= 0.5):
+        assert isinstance(set_complexity, int) and set_complexity > 0, 'set complexity should be > 0'
+        assert isinstance(amount_complexity, int) and amount_complexity > 0, 'amount complexity should be > 0'
+        assert isinstance(special_char_prob, float) and special_char_prob >= 0.0 and special_char_prob <= 1.0, 'special_char_prob should be a float in range [0, 1]'
+        assert isinstance(complex_char_prob, float) and complex_char_prob >= 0.0 and complex_char_prob <= 1.0, 'complex_char_prob should be a float in range [0, 1]'
         self._set_complexity = set_complexity
         self._amount_complexity = amount_complexity
-        self._start_candidates = CharGenerator.printable_escapes
-        self._start_candidates.extend(
-            CharGenerator.special_chars_without_any)
-        self._start_candidates.append(ANY)
+        self._special_char_prob = special_char_prob
+        self._complex_char_prob = complex_char_prob
+        # self._start_candidates = CharGenerator.printable_escapes
+
+        # self._start_candidates.extend(
+        #     CharGenerator.special_chars_without_any)
+        # self._start_candidates.append(ANY)
 
     def get_random_chars(self, length: int) -> typing.List[RegexPattern]:
         """
         Generate a List of single char regex pattern
         with repeat select
         """
-        candidates = copy.copy(self._start_candidates)
-        candidates.append(CharGenerator._get_random_range())
-        candidates.append(self._get_random_set())
-        char = candidates[random.randint(0, len(candidates) - 1)]
-        candidates.append(
-            Wrapper.wrap_into_limit_amount(
-                char, self._amount_complexity))
-        # candidates.append(Wrapper.wrap_into_multi(char))
-        candidates.append(Optional(char))
-        return random.choices(candidates, k=length)
+        result = [self._get_random_char() for _ in range(length)]
+        return result
 
     def _get_random_char(self):
         """
@@ -149,14 +148,24 @@ class CharGenerator:
         else:
             simple char
         """
+        if random.uniform(0, 1) < self._complex_char_prob:
+            if random.uniform(0, 1) < 0.5:
+                return self._get_random_amount()
+            else:
+                return self._get_random_simple_char()
+        else:
+            return self._get_random_simple_char()
 
-    def _get_random_amount(self):
+    def _get_random_amount(self) -> Amount:
         """
         warp _get_random_simple_char into Amount
         """
-        pass
+        char = self._get_random_simple_char()
+        amount_char = Wrapper.wrap_into_limit_amount(
+            char, self._amount_complexity)
+        return amount_char
 
-    def _get_random_simple_char(self):
+    def _get_random_simple_char(self) -> RegexPattern:
         """
         select by special char probability
 
@@ -164,21 +173,25 @@ class CharGenerator:
         - in special chars 1/3
         - random range 1/3
         - random set 1/3
-
         if x < p:
             special char -> more complicated
         else:
             printable char
         """
-        pass
+        if random.uniform(0, 1) < self._special_char_prob:
+            p = random.uniform(0, 1)
+            if p <= 0.333:
+                return CharGenerator._get_random_plain_special_char()
+            elif p <= 0.666:
+                return CharGenerator._get_random_range()
+            else:
+                return self._get_random_set()
+        else:
+            return CharGenerator._get_random_printables()
 
     @staticmethod
-    def _get_random_special_char():
-        pass
-
-    @staticmethod
-    def _get_random_printables():
-        pass
+    def _get_random_plain_special_char() -> RegexPattern:
+        return random.choice(CharGenerator.special_chars_without_any)
 
     @staticmethod
     def _get_random_range() -> Range:
@@ -197,9 +210,8 @@ class CharGenerator:
         Generate a random Set/NotSet pattern.
         NOTE that Any (.) is not a special character in set. Hence, it is excluded.
         """
-        assert self._set_complexity >= 1
         count = random.randint(1, self._set_complexity)
-        chars = CharGenerator._get_random_non_repeating_chars(count)
+        chars = CharGenerator.__get_random_non_repeating_chars(count)
         pattern = join(*chars)
         if random.uniform(0, 1) > 0.5:
             return Set(pattern)
@@ -207,14 +219,13 @@ class CharGenerator:
             return NotSet(pattern)
 
     @staticmethod
-    def _get_random_non_repeating_chars(
+    def __get_random_non_repeating_chars(
             count: int) -> typing.List[RegexPattern]:
         """
         Generate a list of single char regex pattern
         without repeat select
         """
-        candidates = CharGenerator.special_chars_without_any + \
-            CharGenerator.printable_escapes
+        candidates = CharGenerator.special_chars_without_any + CharGenerator.printable_escapes
         try:
             result = random.sample(candidates, count)
         except ValueError:
@@ -229,6 +240,10 @@ class CharGenerator:
             result = random.sample(candidates, count)
         result = sorted(result, key=lambda x: x.regex)
         return result
+
+    @ staticmethod
+    def _get_random_printables() -> RegexPattern:
+        return random.choice(CharGenerator.printable_escapes)
 
 
 class PatternGenerator:
