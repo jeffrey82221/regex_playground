@@ -93,7 +93,7 @@ class Wrapper:
 
 class CharGenerator:
     """
-    All Char-level Generators
+    Char-level RegexPattern Generator
     """
     special_chars_without_any = [
         WHITESPACE,
@@ -191,7 +191,7 @@ class CharGenerator:
 
     @staticmethod
     def _get_random_plain_special_char() -> RegexPattern:
-        return random.choice(CharGenerator.special_chars_without_any)
+        return random.choice(CharGenerator.special_chars_without_any + [ANY])
 
     @staticmethod
     def _get_random_range() -> Range:
@@ -213,7 +213,7 @@ class CharGenerator:
         count = random.randint(1, self._set_complexity)
         chars = CharGenerator.__get_random_non_repeating_chars(count)
         pattern = join(*chars)
-        if random.uniform(0, 1) > 0.5:
+        if random.uniform(0, 1) < 0.5:
             return Set(pattern)
         else:
             return NotSet(pattern)
@@ -259,23 +259,30 @@ class PatternGenerator:
     """
 
     def __init__(self, set_complexity: int, union_complexity: int, amount_complexity: int,
-                 group_complexity: int, depth_complexity: int, breadth_complexity: int):
-        assert breadth_complexity >= 1
-        assert set_complexity >= 1
+                 group_complexity: int, depth_complexity: int, breadth_complexity: int,
+                 special_char_prob: float = 0.5, complex_char_prob: float= 0.5, complex_group_prob: float=0.5):
+        assert breadth_complexity >= 1, 'breadth complexity should be larger than 1'
+        assert set_complexity >= 1, 'set complexity should be larger than 1'
+        assert isinstance(complex_group_prob, float) and complex_group_prob >= 0.0 and complex_group_prob <= 1.0, 'complex_group_prob should be a float in range [0, 1]'
         self._set_complexity = set_complexity
         self._union_complexity = union_complexity
         self._amount_complexity = amount_complexity
         self._group_complexity = group_complexity
         self._depth_complexity = depth_complexity
         self._breadth_complexity = breadth_complexity
+        self._complex_group_prob = complex_group_prob
         self.__char_generator = CharGenerator(
-            set_complexity, amount_complexity)
+            set_complexity,
+            amount_complexity,
+            special_char_prob=special_char_prob,
+            complex_char_prob=complex_char_prob
+        )
 
     def get_random_pattern(self, recurse: int = 0) -> RegexPattern:
         """
         Generate random pattern
         """
-        group_count = random.randint(0, self._breadth_complexity)
+        group_count = random.randint(1, self._breadth_complexity)
         groups = self.get_random_groups(group_count, recurse=recurse)
         pattern = join(*groups)
         return pattern
@@ -286,18 +293,24 @@ class PatternGenerator:
         Generate random group pattern that includes Or/Amount/Multi/Optional patterns
         """
         candidates = []
+        weights = []
         while len(candidates) < group_count:
             group = self._get_random_group_pattern(recurse=recurse)
             candidates.append(group)
+            weights.append(1. - self._complex_group_prob)
+            # 1) Or-wrapped groups
             candidates.append(self._get_random_union_groups(recurse=recurse))
+            # 2) Limited-Amount-wrapped groups
             candidates.append(
                 Group(
                     Wrapper.wrap_into_limit_amount(
                         group,
                         self._amount_complexity)))
             # candidates.append(Group(Wrapper.wrap_into_multi(group)))
+            # 3) Optional-wrapped groups
             candidates.append(Group(Optional(group)))
-        return random.choices(candidates, k=group_count)
+            weights.extend([self._complex_group_prob / 3.] * 3)
+        return random.choices(candidates, k=group_count, weights=tuple(weights))
 
     def _get_random_union_groups(self, recurse: int = 0) -> Group:
         """

@@ -47,7 +47,10 @@ class RegexGenerator:
             'amount_complexity': 4,
             'group_complexity': 10,
             'depth_complexity': 0,
-            'breadth_complexity': 3
+            'breadth_complexity': 3,
+            'special_char_prob': 0.5,
+            'complex_char_prob': 0.5,
+            'complex_group_prob': 0.5
         }
 
     def generate(self):
